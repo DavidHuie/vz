@@ -1,0 +1,108 @@
+---
+
+- hosts: all
+
+  tasks:
+
+    - name: install ansible required packages
+      sudo: yes
+      apt: pkg={{ item }} update_cache=yes state=latest
+      with_items:
+        - python-pycurl
+        - python-psycopg2
+
+- hosts: all
+
+  tasks:
+
+    - name: add docker keys
+      sudo: yes
+      apt_key: url=hkp://keyserver.ubuntu.com:80 id=36A1D7869245C8950F966E92D8576A8BA88D21E9
+
+    - name: add docker repo
+      sudo: yes
+      apt_repository: repo="deb https://get.docker.io/ubuntu docker main" state=present
+
+    - name: install packages
+      sudo: yes
+      apt: pkg={{ item }} update_cache=yes state=latest
+      with_items:
+        - build-essential
+        - gdb
+        - curl
+        - git
+	- lxc-docker
+
+- hosts: all
+
+  tasks:
+
+    - name: grab ruby version
+      command: cat /vagrant/vz/src/.ruby-version
+      register: ruby_version
+
+    - name: install rvm
+      shell: \curl -L https://get.rvm.io | bash -s stable --autolibs=3 creates=~/.rvm
+
+    - name: install ruby
+      shell: >
+        executable=/bin/bash
+        creates=~/.rvm/rubies/{{ ruby_version.stdout }}
+        source .rvm/scripts/rvm && rvm install {{ ruby_version.stdout }}
+
+- hosts: all
+
+  vars:
+      go_version: 1.3
+
+  tasks:
+
+    - name: download
+      command: >
+        chdir=/tmp
+        creates=/tmp/go{{ go_version }}.src.tar.gz
+        wget http://golang.org/dl/go{{ go_version }}.src.tar.gz
+
+    - name: extract
+      sudo: true
+      command: >
+        chdir=/tmp
+        creates=/usr/local/go
+        tar -xf go{{ go_version }}.src.tar.gz -C /usr/local
+
+    - name: change permissions
+      sudo: true
+      file: owner=vagrant path=/usr/local/go recurse=true
+
+    - name: compile
+      shell: >
+        chdir=/usr/local/go/src
+        creates=/usr/local/go/bin/go
+        ./make.bash
+
+    - name: add binaries to shell profile
+      lineinfile: >
+        state=present
+        dest=/home/vagrant/.bashrc
+        line=PATH=$PATH:/usr/local/go/bin
+
+- hosts: all
+
+  tasks:
+
+    - name: create workspace
+      shell: >
+        creates=/home/vagrant/workspace
+        mkdir /home/vagrant/workspace
+
+    - name: add workspace to shell profile
+      lineinfile: >
+        state=present
+        dest=/home/vagrant/.bashrc
+        line="export GOPATH=/home/vagrant/workspace"
+
+    - name: add workspace binaries to shell profile
+      lineinfile: >
+        state=present
+        dest=/home/vagrant/.bashrc
+        line=PATH=$PATH:/home/vagrant/workspace/bin
