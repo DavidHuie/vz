@@ -31,7 +31,7 @@
         - gdb
         - curl
         - git
-	- lxc-docker
+        - lxc-docker
 
 - hosts: all
 
